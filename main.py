@@ -1,15 +1,14 @@
 """Imports"""
-
 import csv
 import numpy as np
 
-# Парсинг даты в нужный формат (ЭТО ВСЕ ЕЩЁ НЕ НУЖНЫЙ ФОРМАТ)
+# Парсинг данных
 def parse_data(name: str = "mnist_test.csv") -> tuple[np.ndarray]:
     """
-    Парсинг даты в нужный формат (ЭТО ВСЕ ЕЩЁ НЕ НУЖНЫЙ ФОРМАТ)
+    Парсинг даты в нужный формат(ЭТО ВСЕ ЕЩЁ НЕ НУЖНЫЙ ФОРМАТ)
     """
     x, y = [], []
-    with open(name, "r+", encoding="UTF8") as f:
+    with open(name, "r", encoding="UTF8") as f:
         for i in csv.reader(f):
             try:
                 base = [0] * 10
@@ -20,79 +19,114 @@ def parse_data(name: str = "mnist_test.csv") -> tuple[np.ndarray]:
                 continue
     return np.array(x), np.array(y)
 
+
+def softmax(x):
+    """
+    Softmax activation function for multi-class classification
+    """
+    e_x = np.exp(x - np.max(x))  # Для предотвращения переполнения
+    return e_x / e_x.sum(axis=1, keepdims=True)
+
+
 def sigmoid(x):
     """
     Activation function
     """
-    return 1 / (1 + np.exp(-x))  # Исправлено использование np.exp вместо exp
+    return 1 / (1 + np.exp(-x))
+
 
 def sigmoid_der(x):
     """
-    Derivative function
+    Activation function derivation
     """
-    return x * (1 - x)  # Упрощенная запись, учитывая, что на входе уже a
+    return x * (1 - x)
 
-def train(x: np.ndarray, y: np.ndarray, mu: float = 0.01, layrs: list = [14, 7, 10], ep: int = 10):
+
+def train(x: np.ndarray, y: np.ndarray, mu: float = 0.01, layrs: list = [128, 64, 10], ep: int = 10, logs: bool = True):
     """
     Function for training ns
     """
     weights = []
-    layrs = [x.shape[1]] + layrs  # Входной слой
-    # Создание весов
-    for i in range(len(layrs) - 1):
-        weights.append(np.random.rand(layrs[i], layrs[i + 1]))
+    biases = []
+    layrs = [x.shape[1]] + layrs
 
-    # Проходим по эпохам
+    # Xavier/Glorot initialization for weights
+    for i in range(len(layrs) - 1):
+        weights.append(np.random.randn(layrs[i], layrs[i + 1]) * np.sqrt(2 / (layrs[i] + layrs[i + 1])))
+        biases.append(np.zeros((1, layrs[i + 1])))
+
     for e in range(ep):
         true_pr_count = 0
         count = 0
-        for _ in range(len(x)):
-            count += 1
+        indices = np.arange(len(x))
+        np.random.shuffle(indices)
+
+        for i in indices:  # Обучение на одном примере за раз
+            a = x[i:i + 1]
+            y_corr = y[i:i + 1]
+
             sigmas = []
             errors = []
 
-            # Выбираем случайный пример
-            i = np.random.randint(0, len(x) - 1)
-            a = x[i].reshape(1, -1)  # Вектор входных данных
-            sigmas.append(a)  # Добавляем входной слой в sigmas для удобства
-
-            # Прямой проход через слои нейронной сети
-            for j in weights:
-                a = a.dot(j)
-                a = sigmoid(a)
+            # Прямой проход
+            sigmas.append(a)
+            for j, _ in enumerate(weights):
+                a = a.dot(weights[j]) + biases[j]
+                a = sigmoid(a) if j != len(weights) - 1 else softmax(a)
                 sigmas.append(a)
 
-            # Начинаем вычислять ошибки и градиенты для обратного распространения
-            if np.argmax(y[i]) == np.argmax(sigmas[-1]):
-                true_pr_count += 1
-            error = (y[i] - sigmas[-1])  # Ошибка для выходного слоя
-            errors.append(sigmoid_der(sigmas[-1]) * error)
+            # Вычисление ошибки
+            error = -(y_corr - sigmas[-1])
+            errors.append(error)
 
-            # Вычисляем градиенты для последующих слоев
+            # Обратное распространение ошибки
             for j in range(len(weights) - 1, 0, -1):
-                grad = sigmoid_der(sigmas[j]) * np.dot(errors[-1], weights[j].T)
+                grad = np.dot(errors[-1], weights[j].T) * sigmoid_der(sigmas[j])
                 errors.append(grad)
 
             errors = errors[::-1]
 
-            # Обновление весов
+            # Обновление весов и биасов
             for j, _ in enumerate(weights):
-                if j == 0:
-                    # Обновление весов первого слоя, используя входной вектор x[i]
-                    weights[j] -= mu * np.dot(x[i].reshape(-1, 1), errors[j])
-                else:
-                    weights[j] -= mu * np.dot(sigmas[j].T, errors[j])
-        print(f"Epoch {e}, accuracy {true_pr_count/count}" )
-    return weights
+                weights[j] -= mu * np.dot(sigmas[j].T, errors[j])
+                biases[j] -= mu * np.sum(errors[j], axis=0, keepdims=True)
+
+            # Подсчет точности
+            true_pr_count += np.argmax(y_corr, axis=1) == np.argmax(sigmas[-1], axis=1)
+            count += 1
+        if logs:
+            print(f"Epoch {e}, accuracy {true_pr_count / count}")
+
+    return weights, biases
+
+
+def test(x, y, weights, biases):
+    """
+    Function for testing datasset
+    """
+    true_pr_count = 0
+    count = 0
+    for i, _ in enumerate(x):  # Обучение на одном примере за раз
+        a = x[i:i + 1]
+        y_corr = y[i:i + 1]
+        for j, _ in enumerate(weights):
+            a = a.dot(weights[j]) + biases[j]
+            a = sigmoid(a) if j != len(weights) - 1 else softmax(a)
+        true_pr_count += np.argmax(y_corr, axis=1) == np.argmax(a, axis=1)
+        count += 1
+    return true_pr_count / count
+
 
 def main() -> None:
     """
-    Main function
+    main function
     """
     x_test, y_test = parse_data()
     x_train, y_train = parse_data("mnist_train.csv")
-    x_train /= 256
-    train(x_train, y_train)
+    x_train /= 255  # Нормализация входных данных
+    weights, biases = train(x_train, y_train, ep=2)
+    print(f"Accuracy at test_data {test(x_test/255, y_test, weights, biases)}")
+
 
 if __name__ == "__main__":
     main()
