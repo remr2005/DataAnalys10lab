@@ -1,7 +1,6 @@
 """Imports"""
 
 import csv
-from random import random
 from math import exp
 import numpy as np
 
@@ -32,10 +31,13 @@ def sigmoid(x):
 
 
 def sigmoid_der(x):
-    return x * (1 - x)
+    """
+    derivation function
+    """
+    return np.array([[i * (1 - i) for i in x[0]]])
 
 
-def train(x: np.ndarray, y: np.ndarray, layrs: list = [14, 7, 10], ep: int = 10):
+def train(x: np.ndarray, y: np.ndarray, mu: float = 0.01, layrs: list = [14, 7, 10], ep: int = 10):
     """
     Function for training ns
     """
@@ -45,11 +47,9 @@ def train(x: np.ndarray, y: np.ndarray, layrs: list = [14, 7, 10], ep: int = 10)
     for i in range(len(layrs) - 1):
         weights.append(np.random.rand(layrs[i], layrs[i + 1]))
 
-    print([(len(i), len(i[0])) for i in weights])
-
     # Проходим по эпохам
-    for _ in range(ep):
-        for _ in range(len(x)):
+    for _ in range(1):
+        for _ in range(1):
             z = []
             sigmas = []
             errors = []
@@ -57,23 +57,30 @@ def train(x: np.ndarray, y: np.ndarray, layrs: list = [14, 7, 10], ep: int = 10)
             # Выбираем случайный пример
             i = np.random.randint(0, len(x) - 1)
             a = x[i]
-
+            a = a.reshape(1, len(a))
             # Прямой проход через слои нейронной сети
             for j in weights:
                 a = a.dot(j)
                 z.append(a)
-                a = np.array([sigmoid(h) for h in a])
+                a = np.array([sigmoid(h) for h in a[0]]).reshape(1, len(a[0]))
                 sigmas.append(a)
-
             # Начинаем вычислять ошибки и градиенты для обратного распространения
-            error = y[i] - sigmas[-1]  # Ошибка для выходного слоя
-            errors.append(error)
-            print(error.shape)
+            error = (y[i] - sigmas[-1])**2  # Ошибка для выходного слоя
+            errors.append(sigmoid_der(sigmas[-1])*error)
+
+            # print(error.shape)
             print([i.shape for i in sigmas])
             # Вычисляем градиенты для последующих слоев
             for j in range(len(weights) - 1, 0, -1):
-                grad = errors[-1].T * sigmoid_der(sigmas[j])
-                errors.append(grad * weights[j])
+                grad = sigmoid_der(sigmas[j-1])*np.dot(errors[-1], weights[j].T)
+                errors.append(grad)
+
+            errors = errors[::-1]
+            print([i.shape for i in errors])
+            for j in range(len(weights)-1, -1, -1):
+                print(j, sigmas[j-1].shape, errors[j].shape)
+                weights[j] -= mu * np.dot(sigmas[j-1].T, errors[j])
+
             print([i.shape for i in errors])
     return weights
 
