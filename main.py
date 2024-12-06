@@ -5,7 +5,7 @@ import numpy as np
 # Парсинг данных
 def parse_data(name: str = "mnist_test.csv") -> tuple[np.ndarray]:
     """
-    Парсинг даты в нужный формат(ЭТО ВСЕ ЕЩЁ НЕ НУЖНЫЙ ФОРМАТ)
+    Парсинг даты в нужный формат
     """
     x, y = [], []
     with open(name, "r", encoding="UTF8") as f:
@@ -50,10 +50,15 @@ def train(x: np.ndarray, y: np.ndarray, mu: float = 0.01, layrs: list = [128, 64
     biases = []
     layrs = [x.shape[1]] + layrs
 
-    # Xavier/Glorot initialization for weights
+    # Обычный рандом
+    for i in range(len(layrs) - 1):
+        weights.append(np.random.rand(layrs[i], layrs[i + 1]))  # Инициализация весов случайными числами
+        biases.append(np.zeros((1, layrs[i + 1])))  # Инициализация смещений нулями
+    # Ксавьер
     for i in range(len(layrs) - 1):
         weights.append(np.random.randn(layrs[i], layrs[i + 1]) * np.sqrt(2 / (layrs[i] + layrs[i + 1])))
         biases.append(np.zeros((1, layrs[i + 1])))
+
 
     for e in range(ep):
         true_pr_count = 0
@@ -61,7 +66,7 @@ def train(x: np.ndarray, y: np.ndarray, mu: float = 0.01, layrs: list = [128, 64
         indices = np.arange(len(x))
         np.random.shuffle(indices)
 
-        for i in indices:  # Обучение на одном примере за раз
+        for i in indices: 
             a = x[i:i + 1]
             y_corr = y[i:i + 1]
 
@@ -106,7 +111,7 @@ def test(x, y, weights, biases):
     """
     true_pr_count = 0
     count = 0
-    for i, _ in enumerate(x):  # Обучение на одном примере за раз
+    for i, _ in enumerate(x):  
         a = x[i:i + 1]
         y_corr = y[i:i + 1]
         for j, _ in enumerate(weights):
@@ -121,11 +126,10 @@ def main() -> None:
     """
     main function
     """
-    x_test, y_test = parse_data()
-    x_train, y_train = parse_data("mnist_train.csv")
-    x_train /= 255  # Нормализация входных данных
-    weights, biases = train(x_train, y_train, ep=2)
-    print(f"Accuracy at test_data {test(x_test/255, y_test, weights, biases)}")
+    x_train, y_train = parse_data("train5x5.csv")
+    weights5x5, biases5x5 = train(x_train, y_train, layrs=[20, 10], ep=2000)
+    x_train, y_train = parse_data("train10x10.csv")
+    weights10x10, biases10x10 = train(x_train, y_train, layrs=[80, 10], ep=7000)
 
 
 if __name__ == "__main__":
